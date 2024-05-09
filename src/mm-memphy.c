@@ -6,6 +6,11 @@
 
 #include "mm.h"
 #include <stdlib.h>
+#include <stdio.h>
+
+pthread_mutex_t lock_mem;
+
+FILE *file;
 
 /*
  *  MEMPHY_mv_csr - move MEMPHY cursor
@@ -94,15 +99,24 @@ int MEMPHY_seq_write(struct memphy_struct * mp, int addr, BYTE value)
  */
 int MEMPHY_write(struct memphy_struct * mp, int addr, BYTE data)
 {
-   if (mp == NULL)
-     return -1;
+  pthread_mutex_lock(&lock_mem);
+  if (mp == NULL)
+  {
+    pthread_mutex_unlock(&lock_mem);
+    return -1;
+  }
 
-   if (mp->rdmflg)
-      mp->storage[addr] = data;
-   else /* Sequential access device */
-      return MEMPHY_seq_write(mp, addr, data);
-
-   return 0;
+  if (mp->rdmflg)
+  {
+    mp->storage[addr] = data;
+    pthread_mutex_unlock(&lock_mem);
+    return 0;
+  }
+  else /* Sequential access device */
+  {
+    pthread_mutex_unlock(&lock_mem);
+    return MEMPHY_seq_write(mp, addr, data);
+  }
 }
 
 /*
@@ -139,29 +153,62 @@ int MEMPHY_format(struct memphy_struct *mp, int pagesz)
 
 int MEMPHY_get_freefp(struct memphy_struct *mp, int *retfpn)
 {
-   struct framephy_struct *fp = mp->free_fp_list;
+    pthread_mutex_lock(&lock_mem);
+    struct framephy_struct *fp = mp->free_fp_list;
 
-   if (fp == NULL)
-     return -1;
+    if (fp == NULL)
+    {
+      pthread_mutex_unlock(&lock_mem);
+      return -1;
+    }
 
    *retfpn = fp->fpn;
    mp->free_fp_list = fp->fp_next;
 
-   /* MEMPHY is iteratively used up until its exhausted
-    * No garbage collector acting then it not been released
-    */
-   free(fp);
-
-   return 0;
+  /* MEMPHY is iteratively used up until its exhausted
+   * No garbage collector acting then it not been released
+   */
+  free(fp);
+  pthread_mutex_unlock(&lock_mem);
+  return 0;
 }
 
 int MEMPHY_dump(struct memphy_struct * mp)
 {
-    /*TODO dump memphy contnt mp->storage 
-     *     for tracing the memory content
-     */
+  /*TODO dump memphy contnt mp->storage
+   * for tracing the memory content */
+  pthread_mutex_lock(&lock_mem);
 
-    return 0;
+  FILE *file = fopen("physical_memory_content.txt", "w");
+  if (file == NULL)
+  {
+    pthread_mutex_unlock(&lock_mem);
+    return -1;
+  }
+
+  struct framephy_struct *frame = mp->used_fp_list;
+  while (frame != NULL)
+  {
+    fprintf(file, "%08x\n", frame->fpn);
+    printf("%08x\n", frame->fpn);
+    for (int offset = 0; offset < PAGING_PAGESZ; ++offset)
+    {
+      if (offset % 32 == 0)
+      {
+        fprintf(file, "\n");
+        printf("\n");
+      }
+      fprintf(file, "%d ", mp->storage[frame->fpn * PAGING_PAGESZ + offset]);
+      printf("%d ", mp->storage[frame->fpn * PAGING_PAGESZ + offset]);
+    }
+    fprintf(file, "\n");
+    printf("\n");
+    frame = frame->fp_next;
+  }
+
+  fclose(file);
+  pthread_mutex_unlock(&lock_mem);
+  return 0;
 }
 
 int MEMPHY_put_freefp(struct memphy_struct *mp, int fpn)
@@ -177,6 +224,18 @@ int MEMPHY_put_freefp(struct memphy_struct *mp, int fpn)
    return 0;
 }
 
+int MEMPHY_put_usedfp(struct memphy_struct *mp, int fpn)
+{
+  pthread_mutex_lock(&lock_mem);
+
+  struct framephy_struct *newUsedFrame = malloc(sizeof(struct framephy_struct));
+  newUsedFrame->fpn = fpn;
+  newUsedFrame->fp_next = mp->used_fp_list;
+  mp->used_fp_list = newUsedFrame;
+
+  pthread_mutex_unlock(&lock_mem);
+  return 0;
+}
 
 /*
  *  Init MEMPHY struct
@@ -185,8 +244,8 @@ int init_memphy(struct memphy_struct *mp, int max_size, int randomflg)
 {
    mp->storage = (BYTE *)malloc(max_size*sizeof(BYTE));
    mp->maxsz = max_size;
-
-   MEMPHY_format(mp,PAGING_PAGESZ);
+  mp->used_fp_list = NULL;
+  MEMPHY_format(mp, PAGING_PAGESZ);
 
    mp->rdmflg = (randomflg != 0)?1:0;
 

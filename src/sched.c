@@ -13,22 +13,28 @@ static pthread_mutex_t queue_lock;
 static struct queue_t mlq_ready_queue[MAX_PRIO];
 #endif
 
-int queue_empty(void) {
+int queue_empty(void)
+{
 #ifdef MLQ_SCHED
 	unsigned long prio;
 	for (prio = 0; prio < MAX_PRIO; prio++)
-		if(!empty(&mlq_ready_queue[prio])) 
-			return -1;
+		if (!empty(&mlq_ready_queue[prio]))
+			return 0;
 #endif
 	return (empty(&ready_queue) && empty(&run_queue));
 }
 
-void init_scheduler(void) {
+void init_scheduler(void)
+{
 #ifdef MLQ_SCHED
-	int i ;
+	int i;
 
-	for (i = 0; i < MAX_PRIO; i ++)
+	for (i = 0; i < MAX_PRIO; i++)
+	{
 		mlq_ready_queue[i].size = 0;
+		mlq_ready_queue[i].mlq_slot = MAX_PRIO - i;
+	}
+
 #endif
 	ready_queue.size = 0;
 	run_queue.size = 0;
@@ -42,13 +48,62 @@ void init_scheduler(void) {
  *  We implement stateful here using transition technique
  *  State representation   prio = 0 .. MAX_PRIO, curr_slot = 0..(MAX_PRIO - prio)
  */
-struct pcb_t * get_mlq_proc(void) {
-	struct pcb_t * proc = NULL;
+
+void resetSlot()
+{
+	for (int i = 0; i < MAX_PRIO; ++i)
+	{
+		mlq_ready_queue[i].mlq_slot = MAX_PRIO - i;
+	}
+}
+
+struct pcb_t *get_mlq_proc(void)
+{
+	struct pcb_t *proc = NULL;
 	/*TODO: get a process from PRIORITY [ready_queue].
 	 * Remember to use lock to protect the queue.
-	 */
-	proc = dequeue(&mlq_ready_queue[0]);
-	return proc;	
+	 * */
+	
+	pthread_mutex_lock(&queue_lock);
+
+	if (queue_empty())
+	{
+		pthread_mutex_unlock(&queue_lock);
+		return NULL;
+	}
+
+	int prio = -1;
+	for (prio = 0; prio < MAX_PRIO; ++prio)
+	{
+		int flag_empty = empty(&mlq_ready_queue[prio]);
+		if (flag_empty)
+		{
+			if (prio == MAX_PRIO - 1)
+			{
+				resetSlot();
+				prio = -1;
+			}
+			continue;
+		}
+
+		if (mlq_ready_queue[prio].mlq_slot > 0)
+		{
+			proc = dequeue(&mlq_ready_queue[prio]);
+			mlq_ready_queue[prio].mlq_slot--;
+			break;
+		}
+		else
+		{
+			if (prio == MAX_PRIO - 1)
+			{
+				resetSlot();
+				prio = -1;
+			}
+		}
+	}
+
+	pthread_mutex_unlock(&queue_lock);
+	return proc;
 }
 
 void put_mlq_proc(struct pcb_t * proc) {
@@ -80,6 +135,9 @@ struct pcb_t * get_proc(void) {
 	/*TODO: get a process from [ready_queue].
 	 * Remember to use lock to protect the queue.
 	 * */
+	pthread_mutex_lock(&queue_lock);
+	proc = dequeue(&ready_queue);
+	pthread_mutex_unlock(&queue_lock);
 	return proc;
 }
 
@@ -95,5 +153,3 @@ void add_proc(struct pcb_t * proc) {
 	pthread_mutex_unlock(&queue_lock);	
 }
 #endif
-
-

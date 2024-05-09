@@ -23,99 +23,117 @@
 #define init_tlbcache(mp,sz,...) init_memphy(mp, sz, (1, ##__VA_ARGS__))
 
 /*
- *  tlb_cache_read read TLB cache device
- *  @mp: memphy struct
- *  @pid: process id
- *  @pgnum: page number
- *  @value: obtained value
+ * tlb_cache_read read TLB cache device
+ * @mp: memphy struct
+ * @addr: virtual address
+ * @value: obtained value
  */
-int tlb_cache_read(struct memphy_struct * mp, int pid, int pgnum, BYTE value)
+int tlb_cache_read(struct memphy_struct *mp, uint32_t addr, uint32_t *value)
 {
-   /* TODO: the identify info is mapped to 
-    *      cache line by employing:
-    *      direct mapped, associated mapping etc.
-    */
-   return 0;
+   if (mp && mp->storage)
+   {
+      /* TODO: the identify info is mapped to
+       * cache line by employing:
+       * direct mapped, associated mapping etc.
+       */
+      int index = (addr / PAGESIZE) % mp->maxsz; // Direct-mapped cache
+      *value = mp->storage[index];
+      return 0;
+   }
+   return -1;
 }
 
 /*
- *  tlb_cache_write write TLB cache device
- *  @mp: memphy struct
- *  @pid: process id
- *  @pgnum: page number
- *  @value: obtained value
+ * tlb_cache_write write TLB cache device
+ * @mp: memphy struct
+ * @addr: virtual address
+ * @value: obtained value
  */
-int tlb_cache_write(struct memphy_struct *mp, int pid, int pgnum, BYTE value)
+int tlb_cache_write(struct memphy_struct *mp, uint32_t addr, uint32_t value)
 {
-   /* TODO: the identify info is mapped to 
-    *      cache line by employing:
-    *      direct mapped, associated mapping etc.
-    */
-   return 0;
+   if (mp == NULL || mp->storage == NULL)
+      return -1;
+      else{
+      /* TODO: the identify info is mapped to
+       * cache line by employing:
+       * direct mapped, associated mapping etc.
+       */
+      int index = (addr / PAGESIZE) % mp->maxsz; // Direct-mapped cache
+      mp->storage[index] = value;
+      return 0;
+      }
 }
 
 /*
- *  TLBMEMPHY_read natively supports MEMPHY device interfaces
- *  @mp: memphy struct
- *  @addr: address
- *  @value: obtained value
+ * TLBMEMPHY_read natively supports MEMPHY device interfaces
+ * @mp: memphy struct
+ * @addr: address
+ * @value: obtained value
  */
-int TLBMEMPHY_read(struct memphy_struct * mp, int addr, BYTE *value)
+int TLBMEMPHY_read(struct memphy_struct *mp, int addr, BYTE *value)
 {
-   if (mp == NULL)
-     return -1;
-
-   /* TLB cached is random access by native */
-   *value = mp->storage[addr];
-
-   return 0;
-}
-
-
-/*
- *  TLBMEMPHY_write natively supports MEMPHY device interfaces
- *  @mp: memphy struct
- *  @addr: address
- *  @data: written data
- */
-int TLBMEMPHY_write(struct memphy_struct * mp, int addr, BYTE data)
-{
-   if (mp == NULL)
-     return -1;
-
-   /* TLB cached is random access by native */
-   mp->storage[addr] = data;
-
-   return 0;
+   if (mp == NULL || mp->storage == NULL)
+      return -1;
+      else{
+      /* TLB cached is random access by native */
+      *value = mp->storage[addr];
+      return 0;
+      }
 }
 
 /*
- *  TLBMEMPHY_format natively supports MEMPHY device interfaces
- *  @mp: memphy struct
+ * TLBMEMPHY_write natively supports MEMPHY device interfaces
+ * @mp: memphy struct
+ * @addr: address
+ * @data: written data
  */
+int TLBMEMPHY_write(struct memphy_struct *mp, int addr, BYTE data)
+{
+   if (mp == NULL || mp->storage == NULL)
+      return -1;
+   else{
+      /* TLB cached is random access by native */
+      mp->storage[addr] = data;
+      return 0;
+      }
+}
 
-
-int TLBMEMPHY_dump(struct memphy_struct * mp)
+/*
+ * TLBMEMPHY_dump natively supports MEMPHY device interfaces
+ * @mp: memphy struct
+ */
+int TLBMEMPHY_dump(struct memphy_struct *mp)
 {
    /*TODO dump memphy contnt mp->storage 
     *     for tracing the memory content
     */
-
-   return 0;
+   if (mp && mp->storage)
+   {
+      for (int i = 0; i < mp->maxsz; i++)
+      {
+         printf("%02x", mp->storage[i]);
+         if ((i + 1) % 16 == 0)
+            printf("\n");
+      }
+      return 0;
+   }
+   else
+      return -1;
 }
 
-
 /*
- *  Init TLBMEMPHY struct
+ * Init TLBMEMPHY struct
  */
 int init_tlbmemphy(struct memphy_struct *mp, int max_size)
 {
-   mp->storage = (BYTE *)malloc(max_size*sizeof(BYTE));
-   mp->maxsz = max_size;
-
-   mp->rdmflg = 1;
-
-   return 0;
+   if (mp)
+   {
+      mp->storage = (BYTE *)malloc(max_size * sizeof(BYTE));
+      mp->maxsz = max_size;
+      mp->rdmflg = 1;
+      return 0;
+   }
+   else
+      return -1;
 }
-
-//#endif
+// #endif
