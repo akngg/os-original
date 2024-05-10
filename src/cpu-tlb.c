@@ -20,12 +20,12 @@ uint32_t get_frame_num(struct pcb_t *proc, uint32_t vaddr)
 {
   if (proc && proc->mm && proc->mm->page_table)
   {
-    uint32_t frame_num = vaddr / PAGESIZE;
+    uint32_t frame_num = vaddr / PAGING_PAGESZ;
     return frame_num;
   }
   return TLB_FRAME_NOT_EXIST;
 }
-void tlb_change_all_page_tables_of(struct pcb_t *proc, struct memphy_struct *mp)
+int tlb_change_all_page_tables_of(struct pcb_t *proc, struct memphy_struct *mp)
 {
   /* TODO update all page table directory info 
    *      in flush or wipe TLB (if needed)
@@ -38,9 +38,10 @@ void tlb_change_all_page_tables_of(struct pcb_t *proc, struct memphy_struct *mp)
     if (proc->tlb)
       tlb_flush_tlb_of(proc, mp);
   }
+  return 0;
 }
 
-void tlb_flush_tlb_of(struct pcb_t *proc, struct memphy_struct *mp)
+int tlb_flush_tlb_of(struct pcb_t *proc, struct memphy_struct *mp)
 {
   /* TODO flush tlb cached*/
   if (proc && proc->tlb)
@@ -48,6 +49,7 @@ void tlb_flush_tlb_of(struct pcb_t *proc, struct memphy_struct *mp)
     for (int i = 0; i < proc->tlb->maxsz; i++)
       proc->tlb->storage[i] = 0;
   }
+  return 0;
 }
 
 /*tlballoc - CPU TLB-based allocate a region memory
@@ -67,7 +69,7 @@ int tlballoc(struct pcb_t *proc, uint32_t size, uint32_t reg_index)
 
   if (val == 0)
   {
-    for (uint32_t i = addr; i < addr + size; i += PAGESIZE)
+    for (uint32_t i = addr; i < addr + size; i += PAGING_PAGESZ)
     {
       uint32_t frame_num = get_frame_num(proc, i);
       if (frame_num != TLB_FRAME_NOT_EXIST)
@@ -89,13 +91,13 @@ int tlbfree_data(struct pcb_t *proc, uint32_t reg_index)
 
   /* TODO update TLB CACHED frame num of freed page(s)*/
   /* by using tlb_cache_read()/tlb_cache_write()*/
-  if (reg_index < PAGING_MAX_SYMTBL_SZ)
-    return 0;
+  //if (reg_index < PAGING_MAX_SYMTBL_SZ)
+  //  return 0;
 
   struct vm_rg_struct *rg = &(proc->mm->symrgtbl[reg_index]);
   if (rg != NULL)
   {
-    for (uint32_t addr = rg->rg_start; addr < rg->rg_end; addr += PAGESIZE)
+    for (uint32_t addr = rg->rg_start; addr < rg->rg_end; addr += PAGING_PAGESZ)
       tlb_cache_write(proc->tlb, addr, TLB_FRAME_NOT_EXIST);
   }
   return 0;
@@ -107,16 +109,17 @@ int tlbfree_data(struct pcb_t *proc, uint32_t reg_index)
  *@offset: source address = [source] + [offset]
  *@destination: destination storage
  */
-int tlbread(struct pcb_t *proc, uint32_t source, uint32_t offset, uint32_t *destination)
+int tlbread(struct pcb_t *proc, uint32_t source, uint32_t offset, uint32_t destination)
 {
   /* TODO retrieve TLB CACHED frame num of accessing page(s)*/
   /* by using tlb_cache_read()/tlb_cache_write()*/
   /* frmnum is return value of tlb_cache_read/write value*/
-  if (proc == NULL || destination == NULL)
+  if (proc == NULL /*|| destination == NULL*/)
     return -1;
   BYTE data;
   uint32_t frame_num = TLB_FRAME_NOT_EXIST;
-  uint32_t addr = proc->regs[source] + offset;
+  //uint32_t addr = proc->regs[source] + offset;
+  uint32_t addr = proc->mm->symrgtbl[source].rg_start + offset;
   frame_num = tlb_cache_read(proc->tlb, addr);
 #ifdef IODUMP
   if (frame_num != TLB_FRAME_NOT_EXIST)
@@ -157,7 +160,8 @@ int tlbwrite(struct pcb_t *proc, BYTE data, uint32_t destination, uint32_t offse
   frmnum is return value of tlb_cache_read/write value*/
 
   uint32_t frame_num = TLB_FRAME_NOT_EXIST;
-  uint32_t addr = proc->regs[destination] + offset;
+  //uint32_t addr = proc->regs[destination] + offset;
+  uint32_t addr = proc->mm->symrgtbl[destination].rg_start + offset;
   frame_num = tlb_cache_read(proc->tlb, addr);
 #ifdef IODUMP
   if (frame_num != TLB_FRAME_NOT_EXIST)

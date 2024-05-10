@@ -1,5 +1,6 @@
 
 #include "loader.h"
+#include "mm.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,6 +33,8 @@ static enum ins_opcode_t get_opcode(char * opt) {
 struct pcb_t * load(const char * path) {
 	/* Create new PCB for the new process */
 	struct pcb_t * proc = (struct pcb_t * )malloc(sizeof(struct pcb_t));
+	proc->tlb = (struct memphy_struct * )malloc(sizeof(struct memphy_struct));
+	init_tlbmemphy(proc->tlb, TLB_SIZE);
 	proc->pid = avail_pid;
 	avail_pid++;
 	proc->page_table =

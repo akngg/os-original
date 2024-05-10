@@ -7,6 +7,7 @@
 #include "mm.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <pthread.h>
 
 pthread_mutex_t lock_mem;
 
@@ -189,8 +190,21 @@ int MEMPHY_dump(struct memphy_struct * mp)
   struct framephy_struct *frame = mp->used_fp_list;
   while (frame != NULL)
   {
-    fprintf(file, "%08x\n", frame->fpn);
-    printf("%08x\n", frame->fpn);
+    #ifdef MEMPHY_DUMP_PASS_EMPTY_FRAME
+    int haveValue = 0;
+    for (int offset = 0; offset < PAGING_PAGESZ; ++offset)
+      if (mp->storage[frame->fpn * PAGING_PAGESZ + offset] != 0){
+        haveValue = 1;
+        break;
+      }
+    if (haveValue == 0)
+    {
+      frame = frame->fp_next;
+      continue;
+    }
+    #endif
+    fprintf(file, "Frame %08x", frame->fpn);
+    printf("Frame %08x", frame->fpn);
     for (int offset = 0; offset < PAGING_PAGESZ; ++offset)
     {
       if (offset % 32 == 0)
@@ -242,6 +256,7 @@ int MEMPHY_put_usedfp(struct memphy_struct *mp, int fpn)
  */
 int init_memphy(struct memphy_struct *mp, int max_size, int randomflg)
 {
+  pthread_mutex_init(&lock_mem, NULL);
    mp->storage = (BYTE *)malloc(max_size*sizeof(BYTE));
    mp->maxsz = max_size;
   mp->used_fp_list = NULL;

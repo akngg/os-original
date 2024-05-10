@@ -1,0 +1,14 @@
+{
+    "tasks": [
+        {
+            "type": "shell",
+            "label": "run the makefile",
+            "command": "make",
+            //"command": "C:/MinGW/bin/make.exe",
+            "args": [],
+            //"args": ["os.exe"],
+            "problemMatcher": [],
+        }
+    ],
+    "version": "2.0.0"
+}

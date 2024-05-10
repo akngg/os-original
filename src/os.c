@@ -65,14 +65,14 @@ static void * cpu_routine(void * args) {
                         }
 		}else if (proc->pc == proc->code->size) {
 			/* The porcess has finish it job */
-			printf("\tCPU %d: Processed %2d has finished\n",
+			printf("\tCPU %d: Process %d: finished\n",
 				id ,proc->pid);
 			free(proc);
 			proc = get_proc();
 			time_left = 0;
 		}else if (time_left == 0) {
 			/* The process has done its job in current time slot */
-			printf("\tCPU %d: Put process %2d to run queue\n",
+			printf("\tCPU %d: Put process %d to queue\n",
 				id, proc->pid);
 			put_proc(proc);
 			proc = get_proc();
@@ -89,14 +89,14 @@ static void * cpu_routine(void * args) {
 			next_slot(timer_id);
 			continue;
 		}else if (time_left == 0) {
-			printf("\tCPU %d: Dispatched process %2d\n",
-				id, proc->pid);
 			time_left = time_slot;
+			printf("\tCPU %d: Dispatched Process %d: %d job remain, %d time left\n", id, proc->pid, proc->code->size - proc->pc, time_left);
 		}
 		
 		/* Run current process */
 		run(proc);
 		time_left--;
+		printf("\tCPU %d: Process %d: done, %d job remain, %d time left\n", id, proc->pid, proc->code->size - proc->pc, time_left);
 		next_slot(timer_id);
 	}
 	detach_event(timer_id);
@@ -198,11 +198,20 @@ static void read_config(const char * path) {
 }
 
 int main(int argc, char * argv[]) {
-	/* Read config */
-	if (argc != 2) {
-		printf("Usage: os [path to configure file]\n");
-		return 1;
+	int debugMode = 0;
+	if (debugMode == 1){
+		// Debug cannot send argument so i have to set it programmically
+		argc = 2;
+		argv[1] = "os_0_mlq_paging";
 	}
+	else{
+		if (argc != 2) {
+			printf("Usage: os [path to configure file]\n");
+			return 1;
+		}
+	}
+	
+	/* Read config */
 	char path[100];
 	path[0] = '\0';
 	strcat(path, "input/");
@@ -274,3 +283,6 @@ int main(int argc, char * argv[]) {
 	return 0;
 
 }
+
+
+

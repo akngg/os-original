@@ -28,7 +28,7 @@
  * @addr: virtual address
  * @value: obtained value
  */
-int tlb_cache_read(struct memphy_struct *mp, uint32_t addr, uint32_t *value)
+int tlb_cache_read(struct memphy_struct *mp, uint32_t addr)
 {
    if (mp && mp->storage)
    {
@@ -36,9 +36,12 @@ int tlb_cache_read(struct memphy_struct *mp, uint32_t addr, uint32_t *value)
        * cache line by employing:
        * direct mapped, associated mapping etc.
        */
-      int index = (addr / PAGESIZE) % mp->maxsz; // Direct-mapped cache
-      *value = mp->storage[index];
-      return 0;
+      int index = (addr / PAGING_PAGESZ) % mp->maxsz; // Direct-mapped cache
+      int val = mp->storage[index];
+      if (val >= 0)
+         return val;
+      else
+         return -1;
    }
    return -1;
 }
@@ -51,16 +54,17 @@ int tlb_cache_read(struct memphy_struct *mp, uint32_t addr, uint32_t *value)
  */
 int tlb_cache_write(struct memphy_struct *mp, uint32_t addr, uint32_t value)
 {
-   if (mp == NULL || mp->storage == NULL)
+   if (mp == NULL || mp->storage == NULL){
       return -1;
+   }
       else{
       /* TODO: the identify info is mapped to
        * cache line by employing:
        * direct mapped, associated mapping etc.
        */
-      int index = (addr / PAGESIZE) % mp->maxsz; // Direct-mapped cache
-      mp->storage[index] = value;
-      return 0;
+         int index = (addr / PAGING_PAGESZ) % mp->maxsz; // Direct-mapped cache
+         mp->storage[index] = value;
+         return 0;
       }
 }
 
@@ -131,6 +135,11 @@ int init_tlbmemphy(struct memphy_struct *mp, int max_size)
       mp->storage = (BYTE *)malloc(max_size * sizeof(BYTE));
       mp->maxsz = max_size;
       mp->rdmflg = 1;
+      mp->cursor = 0;
+      free(mp->free_fp_list);
+      free(mp->used_fp_list);
+      mp->free_fp_list = NULL;
+      mp->used_fp_list = NULL;
       return 0;
    }
    else
