@@ -4,7 +4,7 @@
 #include "common.h"
 
 #ifndef TLB_SIZE
-#define TLB_SIZE 128 // Example value, replace with the correct size
+#define TLB_SIZE 128
 #endif
 
 #define PAGESIZE 4096
